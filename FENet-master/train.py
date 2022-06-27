@@ -76,10 +76,7 @@ def train_model(model, dataloaders, criterion, optimizer, device, num_epochs=30,
         
             epoch_loss = running_loss / (len(dataloaders[phase].sampler))
             epoch_acc = running_corrects.double() / (len(dataloaders[phase].sampler))
-            # import pdb
-            # pdb.set_trace()
-            # mlflow.log_metric("epoch_{}_loss".format(phase),float(epoch_loss),step=epoch)
-            # mlflow.log_metric('epoch_{}_acc'.format(phase),float(epoch_acc),step=epoch)
+
             mlflow.log_metrics({'epoch_{}_loss'.format(phase):float(epoch_loss),
                                  'epoch_{}_acc'.format(phase):float(epoch_acc)}, step=epoch)
         
