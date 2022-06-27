@@ -8,8 +8,26 @@ from models.FENet50 import Net as FENet50
 from torch import optim as optim
 from torch.optim import lr_scheduler
 
+import torch.nn.init as init
+
 import os
 # import pickle
+def init_params(net):
+    '''Init layer parameters.'''
+    for m in net.modules():
+        if isinstance(m, nn.Conv2d):
+            init.xavier_normal_(m.weight, gain=1.0)
+            if m.bias:
+                init.constant(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm2d):
+            init.constant(m.weight, 1)
+            init.constant(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            init.xavier_normal_(m.weight, gain=1.0)
+            if m.bias:
+                init.constant(m.bias, 0)
+
+    return net
 
 def setup_seed(seed:int):
     seed = int(seed)
@@ -24,6 +42,7 @@ def setup_seed(seed:int):
 def initialize_model(opt):  
     if opt.model == 'FENet':
         model = eval('FENet{}'.format(opt.backbone[-2:]))(opt)
+        model = init_params(model)
     else:
         raise Exception('Unexpected Model of {}'.format(opt.model))
 
