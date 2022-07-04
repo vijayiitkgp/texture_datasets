@@ -1,4 +1,4 @@
-from matplotlib.ticker import _DummyAxis
+
 from opts import parse_opts
 from Info import Datasets_Info
 from prepare_dataloader import Prepare_DataLoaders
@@ -32,11 +32,14 @@ from torch.backends import cudnn
 stream = io.BytesIO()
 # cudnn.benchmark = True            # if benchmark=True for accelerating, deterministic will be False
 # cudnn.deterministic = False
-cudnn.benchmark=True
+cudnn.benchmark = False
+cudnn.deterministic=True
 print(cudnn.benchmark)
 print(cudnn.deterministic)
 
 if __name__ == '__main__':
+    # torch.set_default_dtype(torch.float64)
+    #torch.set_default_tensor_type(torch.DoubleTensor)
     opt_Parser = parse_opts()
     opt_Parser = Parser(opt_Parser)
     opt = opt_Parser.get_arguments()
@@ -46,20 +49,27 @@ if __name__ == '__main__':
     opt_Parser.write_args()
     opt_Parser.print_args()
     print('-->> dataset:{} | model:{} | backbone:{} <<--'.format(opt.dataset, opt.model, opt.backbone))
-
+    
     if opt.gpu_ids and torch.cuda.is_available():
+
         device = torch.device("cuda:%d" % opt.gpu_ids[0])
         torch.cuda.set_device(opt.gpu_ids[0])
         torch.cuda.manual_seed(opt.seed)
+        print("in device hiii-------------------------------------------------------------------",device)
+        print(cudnn.benchmark)
+        print(cudnn.deterministic)
+        
     else:
         device = torch.device("cpu")
         torch.manual_seed(opt.seed)
+        print("Using cpu -------------------------------")
 
     mlflow.set_experiment('FENet-'+opt.dataset)
     
-    num_Runs=10
-    
-    for split in range(0,10):
+    start_run = opt.start_run
+    end_run = opt.end_run
+
+    for split in range(start_run-1,end_run):
         print('Run_{}'.format(split + 1))
         mlflow.start_run(run_name='_'.join([str(opt.lr).replace('.','-'), opt.model, opt.dataset, 'split{}'.format(split)]))
         mlflow.log_param("lr",opt.lr)
@@ -78,6 +88,7 @@ if __name__ == '__main__':
 
         dataloaders_dict = Prepare_DataLoaders(opt, split+1, input_size=(224, 224))
         model = initialize_model(opt).to(device)
+        #print((model.parameters()).is_cuda)
         # for k,v in model.state_dict().items():
         #     print(k)
         # print(model)
@@ -94,12 +105,11 @@ if __name__ == '__main__':
         optimizer = get_Optimizer(opt, model)
         scheduler = get_Scheduler(opt, optimizer)
         criterion = nn.CrossEntropyLoss()
-
-        if opt.gpu_ids and torch.cuda.is_available():
-            model = torch.nn.DataParallel(model)
+        #if opt.gpu_ids and torch.cuda.is_available():
+           # model = torch.nn.DataParallel(model)
         
         if opt.train_need:
-            train_dict = train_model(model, dataloaders_dict, criterion, optimizer, device, opt.num_epochs, epoch_start, scheduler)
+            train_dict = train_model(model, opt, dataloaders_dict, criterion, optimizer, device, opt.num_epochs, epoch_start, scheduler)
             mlflow.log_metrics({"Best_Accuracy":float(train_dict['best_test_acc']), "Best_Epoch":int(train_dict['best_epoch'])})
         if opt.test_need:
             # print("adfffffffffffffasfasdawdae")
@@ -132,7 +142,28 @@ if __name__ == '__main__':
             
         if opt.train_need and opt.test_need and opt.save_result:
             save_results(train_dict, test_dict, split, opt)
+        
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        x = np.load('results/'+opt.scope+'/'+opt.dataset+'/'+opt.model+'_'+opt.backbone[-2:]+'_'+ opt.save_name+'/Run_1/Training_Accuracy_track.npy')
+        print(x.shape)
+        y =np.arange(1,opt.num_epochs+1)
+
+        x2 = np.load('results/'+opt.scope+'/'+opt.dataset+'/'+opt.model+'_'+opt.backbone[-2:]+'_'+ opt.save_name+'/Run_1/Test_Accuracy_track.npy')
+
+        print(x2.shape)
+        plt.plot(y,x2,label='test',color = 'green')
+        plt.plot(y,x,label = 'train' ,color='red')
+        plt.legend()
+        plt.savefig("Accuracy_dtd_test")
+        """
+        
+
+
         mlflow.end_run()
+
     if opt.train_need:
         get_result(opt)
-        print('-->> Train Done <<--')
+        print(f'-->> Train Done from runs {start_run} to {end_run} <--')

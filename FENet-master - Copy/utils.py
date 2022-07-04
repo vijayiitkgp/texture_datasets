@@ -5,28 +5,44 @@ import numpy as np
 
 from models.FENet18 import Net as FENet18
 from models.FENet50 import Net as FENet50
+from models.OURS18 import Net as OURS18
 from torch import optim as optim
 from torch.optim import lr_scheduler
 
+import torch.nn as nn
 import torch.nn.init as init
 
 import os
 # import pickle
 def init_params(net):
     '''Init layer parameters.'''
+    flag =0
     for m in net.modules():
-        print("printing the module: "+str(m))
-        if isinstance(m, nn.Conv2d):
-            init.xavier_normal_(m.weight, gain=1.0)
-            if m.bias:
-                init.constant(m.bias, 0)
-        elif isinstance(m, nn.BatchNorm2d):
-            init.constant(m.weight, 1)
-            init.constant(m.bias, 0)
-        elif isinstance(m, nn.Linear):
-            init.xavier_normal_(m.weight, gain=1.0)
-            if m.bias:
-                init.constant(m.bias, 0)
+        #print(m.named_parameters())
+        #break
+        flag=0
+        for k,v in m.named_parameters():
+            #print(k
+            if 'backbone' in k:
+                print("in backbone")
+            
+            else:
+                # print(str(m))
+                 if k=="bias":
+                    pass
+                 elif isinstance(m, nn.Conv2d):
+                     print("update conv")
+                     print(k)
+                     init.xavier_uniform_(v, gain=1.0)                                                                                                 
+                 elif isinstance(m, nn.Linear):
+
+                     
+                     print("update linear")
+                     print(k)
+                     init.xavier_uniform_(v, gain=1.0)
+                 else:
+                    pass
+                    
 
     return net
 
@@ -44,6 +60,9 @@ def initialize_model(opt):
     if opt.model == 'FENet':
         model = eval('FENet{}'.format(opt.backbone[-2:]))(opt)
         model = init_params(model)
+    elif opt.model== 'OURS':
+         model = eval('OURS{}'.format(opt.backbone[-2:]))(opt)
+         #model = init_params(model)
     else:
         raise Exception('Unexpected Model of {}'.format(opt.model))
 
@@ -66,7 +85,7 @@ def get_parameters(opt, model):
 
 def get_Optimizer(opt, model):
     if opt.optimizer == 'SGD':
-        optimizer = optim.SGD(get_parameters(opt, model), lr=opt.lr, momentum=opt.momentum, weight_decay=opt.weight_decay)
+        optimizer = optim.SGD(get_parameters(opt, model), lr=opt.lr, momentum=opt.momentum, nesterov=False, weight_decay=opt.weight_decay)
     elif opt.optimizer == 'Adam':
         optimizer = optim.Adam(model.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2), eps=opt.eps, weight_decay=opt.weight_decay)
     else:
@@ -77,7 +96,7 @@ def get_Scheduler(opt, optimizer):
     if opt.scheduler == 'step':
         scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_step, gamma=opt.gamma)
     elif opt.scheduler == 'cosine':
-        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=10e-7)
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=opt.T_max, T_mult=1, eta_min=10e-7)         # CosineAnnealingLR(optimizer, T_max=opt.T_max, eta_min=10e-7)   # CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=1, eta_min=10e-7)
     elif opt.scheduler == 'OnPlateau':
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=10, verbose=False, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
     else:
